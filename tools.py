@@ -32,11 +32,11 @@ class SimpleTransformer:
 
         im = np.float32(im)
         im = im[:, :, ::-1]  # change to BGR
-        im -= self.mean
+        # im -= self.mean
         im *= self.scale
-        im = im.transpose((2, 0, 1))
+        # im = im.transpose((2, 0, 1))
 
-        return im
+        return np.uint8(im)
 
     def deprocess(self, im):
         """

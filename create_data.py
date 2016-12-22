@@ -4,17 +4,32 @@ import lmdb
 import caffe
 import os
 from random import shuffle
+from tools import SimpleTransformer
+import shutil
 
-image_name = '11537b_x40_01.tif'
-image_labels_name = '11537b_x40_01_labels.tif'
+r_val = 0
+g_val = 0
+b_val = 0
 
-dir_to_save = '/home/pi/Temp/pixel/images/'
+image_name = './source_images/11537b_x40_01.tif'
+image_labels_name = './source_images/11537b_x40_01_labels.tif'
+
+dir_to_save = '/home/pi/Temp/pixel/images_val/'
 train_db_name = 'train_lmdb'
-val_db_name = 'val_lmdb'
+test_db_name = 'val_lmdb'
 
-train_part = 0.7
-half_image_size = 25
-# color values for labels BGR
+
+try:
+    # pass
+    shutil.rmtree(dir_to_save)
+except OSError:
+    pass
+
+os.mkdir(dir_to_save)
+
+train_part = 0.8
+half_image_size = 14
+# color testues for labels BGR
 labels = {'1': [0, 0, 0],
           '2': [0, 0, 255],
           '3': [255, 0, 0]}
@@ -26,20 +41,20 @@ r = im_l[:,:,0]
 g = im_l[:,:,1]
 b = im_l[:,:,2]
 
-
 x_shape, y_shape, z_shape = im_l.shape
 
 
 def createDB(db_name):
-    map_size=104857600000
+    map_size=10e12
     db = lmdb.open(db_name, map_size=map_size)
     
     return db
 
 
 def savePatch(patch, x, y, label):
-    patch_name = '_'.join((str(x), str(y), str(label)))
-    patch_name += '.tif'
+    patch_name = '_'.join((
+        os.path.basename(image_name.replace('.tif', '')), str(x), str(y), str(label)))
+    patch_name += '.png'
     io.imsave(os.path.join(dir_to_save, patch_name), patch)
 
 
@@ -47,18 +62,34 @@ def createPatch(x, y, label):
     print x, y
     patch = im[x-half_image_size:x+half_image_size,
                y-half_image_size:y+half_image_size]
+    
+    print np.mean(patch[:,:,0]), np.mean(patch[:,:,1]), np.mean(patch[:,:,2])
+    st = SimpleTransformer()
+    patch = st.preprocess(patch) # no mean
     savePatch(patch, x, y, label)
+    print np.mean(patch[:,:,0]), np.mean(patch[:,:,1]), np.mean(patch[:,:,2])
+    bgrMean(np.mean(patch[:,:,0]), np.mean(patch[:,:,1]), np.mean(patch[:,:,2]))
 
     return patch.tobytes()
 
 
-def addToDb(env_train, env_val, x_shape, y_shape):
+def bgrMean(b=0, g=0, r=0, calc=False, num=0):
+    global g_val, r_val, b_val
+    g_val += g
+    r_val += r
+    b_val += b
+
+    if calc is True:
+        return b_val/num, g_val/num, r_val/num
+
+
+def addToDb(env_train, env_test, x_shape, y_shape):
     env_train = env_train
-    env_val = env_val
+    env_test = env_test
     counter = 0
     all_tab = []
     train_tab = []
-    val_tab = []
+    test_tab = []
 
     for x in range(half_image_size, x_shape-half_image_size):
         for y in range(half_image_size, y_shape-half_image_size):
@@ -77,21 +108,23 @@ def addToDb(env_train, env_val, x_shape, y_shape):
                     all_tab.append([str_id, datum])
     shuffle(all_tab)
     train_tab = all_tab[:int(len(all_tab)*train_part)]
-    val_tab = all_tab[int(len(all_tab)*train_part):]
-    print len(train_tab), len(val_tab)
+    test_tab = all_tab[int(len(all_tab)*train_part):]
+    print len(train_tab), len(test_tab)
 
     with env_train.begin(write=True) as txn_train:
         for d in train_tab:
             txn_train.put(d[0].encode('ascii'), d[1].SerializeToString())
 
     
-    with env_val.begin(write=True) as txn_val:
-        for d in val_tab:
-            txn_val.put(d[0].encode('ascii'), d[1].SerializeToString())
-
+    with env_test.begin(write=True) as txn_test:
+        for d in test_tab:
+            txn_test.put(d[0].encode('ascii'), d[1].SerializeToString())
+    
+    print bgrMean(calc=True, num=counter)
 
 
 if __name__ == '__main__':
+
     env_train = createDB(train_db_name)
-    env_val = createDB(val_db_name)
-    addToDb(env_train, env_val, x_shape, y_shape)
+    env_test = createDB(test_db_name)
+    addToDb(env_train, env_test, x_shape, y_shape)
