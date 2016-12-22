@@ -61,7 +61,7 @@ transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
 transformer.set_transpose('data', (2,0,1))  # move image channels to outermost dimension
 transformer.set_mean('data', mu)            # subtract the dataset-mean value in each channel
 # transformer.set_raw_scale('data', 255)      # rescale from [0, 1] to [0, 255]
-# transformer.set_channel_swap('data', (2,1,0))  # swap channels from RGB to BGR
+transformer.set_channel_swap('data', (2,1,0))  # swap channels from RGB to BGR
 
 # set the size of the input (we can skip this if we're happy
 #  with the default; we can also change it later, e.g., for different batch sizes)
@@ -91,8 +91,6 @@ if __name__ == "__main__":
     im = io.imread(image_name)
     # im = im[300:600, 200:600]
     x_shape, y_shape, z_shape = im.shape
-    patch_test = '/home/pi/Temp/pixel/images_val/1/' + '11537b_x40_01_37_355_1.png'
-    patch_test = io.imread(patch_test)
     half_patch_size = 14
     pred_map = np.zeros_like(im[:,:,0])
     for x in range(half_patch_size, x_shape-half_patch_size):
@@ -100,7 +98,6 @@ if __name__ == "__main__":
             patch = im[x-half_patch_size:x+half_patch_size,
                        y-half_patch_size:y+half_patch_size]
             pred_class = pred(patch)
-            # pred_class = pred(patch_test)
             pred_map[x][y] = int(pred_class)
     plt.pcolor(pred_map, cmap=cmap, norm=norm)
     plt.show()
